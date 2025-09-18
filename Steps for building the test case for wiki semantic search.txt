@@ -1,0 +1,138 @@
+Steps for building the test case for Wiki Search Vector Database
+
+from datasets import load_dataset
+
+>> ds = load_dataset('wiki_qa', split='train')
+>> ds
+
+q = []
+
+for i in dataset['questions']:
+    q.append(r)
+
+>>> q = list(set(q))
+>>> print('\n'.join(q[:5]))
+what are the major airports in mexico
+what does strith
+what kind of transportation was there in the middle ages
+what happened to the zodiac killer
+what country is belize in
+>>> print(len(q))
+2118
+
+>>> from sentence_transformers import SentenceTransformer
+>>> import torch
+>>> model = SentenceTransformer('all-MiniLM-L6-v2', device='cpu')
+>>> model
+SentenceTransformer(
+  (0): Transformer({'max_seq_length': 256, 'do_lower_case': False}) with Transformer model: BertModel
+  (1): Pooling({'word_embedding_dimension': 384, 'pooling_mode_cls_token': False, 'pooling_mode_mean_tokens': True, 'pooling_mode_max_tokens': False, 'pooling_mode_mean_sqrt_len_tokens': False})
+  (2): Normalize()
+)
+>>> question = 'how is a computer used'
+>>> encquestion = model.encode(question)
+>>> encquestion.shape
+(384,)
+>>> _id = 0
+>>> metadata = {'text':question}
+>>> vectors = [(_id, encquestion, metadata)]
+>>> import pinecone
+
+>>> pinecone.init(api_key='efb7d1a5-5625-4bee-8be3-0d2f9ee399e2', environment='northamerica-northeast1-gcp')
+
+>>> pinecone.delete_index('wiki-semantic-search')
+>>> pinecone.create_index (
+...     name = 'wiki-semantic-search',
+...     dimension=model.get_sentence_embedding_dimension(),
+...     metric='cosine'
+... )
+>>>
+>>> wiki_index = pinecone.GRPCIndex('wiki-semantic-search')
+
+>> from tqdm.auto import tqdm
+>>> for ctr in tqdm(range(0,2118,128)):
+...     ctr_end = min(ctr+128, 2118)
+...     IDs = [str(x) for x in range(ctr, ctr_end)]
+...     metadatas = [{'text': text} for text in q[ctr:ctr_end]]
+...     embeddings = model.encode(q[ctr:ctr_end])
+...     recs = zip(IDs, embeddings, metadatas)
+...     wiki_index.upsert(vectors = recs)
+...
+  0%|                                                                                                                               | 0/17 [00:00<?, ?it/s]upserted_count: 128
+
+  6%|███████                                                                                                                | 1/17 [00:00<00:15,  1.04it/s]upserted_count: 128
+
+ 12%|██████████████                                                                                                         | 2/17 [00:01<00:10,  1.49it/s]upserted_count: 128
+
+ 18%|█████████████████████                                                                                                  | 3/17 [00:01<00:08,  1.72it/s]upserted_count: 128
+
+ 24%|████████████████████████████                                                                                           | 4/17 [00:02<00:07,  1.80it/s]upserted_count: 128
+
+ 29%|███████████████████████████████████                                                                                    | 5/17 [00:02<00:06,  1.93it/s]upserted_count: 128
+
+ 35%|██████████████████████████████████████████                                                                             | 6/17 [00:03<00:05,  2.05it/s]upserted_count: 128
+
+ 41%|█████████████████████████████████████████████████                                                                      | 7/17 [00:03<00:04,  2.12it/s]upserted_count: 128
+
+ 47%|████████████████████████████████████████████████████████                                                               | 8/17 [00:04<00:04,  2.19it/s]upserted_count: 128
+
+ 53%|███████████████████████████████████████████████████████████████                                                        | 9/17 [00:04<00:03,  2.24it/s]upserted_count: 128
+
+ 59%|█████████████████████████████████████████████████████████████████████▍                                                | 10/17 [00:05<00:03,  2.23it/s]upserted_count: 128
+
+ 65%|████████████████████████████████████████████████████████████████████████████▎                                         | 11/17 [00:05<00:02,  2.22it/s]upserted_count: 128
+
+ 71%|███████████████████████████████████████████████████████████████████████████████████▎                                  | 12/17 [00:05<00:02,  2.24it/s]upserted_count: 128
+
+ 76%|██████████████████████████████████████████████████████████████████████████████████████████▏                           | 13/17 [00:06<00:01,  2.18it/s]upserted_count: 128
+
+ 82%|█████████████████████████████████████████████████████████████████████████████████████████████████▏                    | 14/17 [00:06<00:01,  2.23it/s]upserted_count: 128
+
+ 88%|████████████████████████████████████████████████████████████████████████████████████████████████████████              | 15/17 [00:07<00:00,  2.24it/s]upserted_count: 128
+
+ 94%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████       | 16/17 [00:07<00:00,  2.24it/s]upserted_count: 70
+
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 17/17 [00:07<00:00,  2.13it/s]
+>>> wiki_index.describe_index_stats
+<bound method GRPCIndex.describe_index_stats of <pinecone.core.grpc.index_grpc.GRPCIndex object at 0x00000276EF0EE980>>
+>>> wiki_index.describe_index_stats()
+{'dimension': 384,
+ 'index_fullness': 0.0,
+ 'namespaces': {'': {'vector_count': 2118}},
+ 'total_vector_count': 2118}
+>>> question = 'what happened in 1907'
+>>> ques_vector = model.encode(
+... question).tolist()
+>>>
+>>> ques_vector
+[-0.061691027134656906, 0.0342148095369339, ...
+
+>>> question = 'give me some important events during 1900''s'
+>>> ques_vector = model.encode(question).tolist()
+>>> answer_vector = wiki_index.query(ques_vector, top_k = 3, include_metadata = True)
+>>> answer_vector
+{'matches': [{'id': '2019',
+              'metadata': {'text': 'what happened in 1907'},
+              'score': 1.0,
+              'sparse_values': {'indices': [], 'values': []},
+              'values': []},
+             {'id': '1639',
+              'metadata': {'text': 'what happened in 1877 in us'},
+              'score': 0.5087314,
+              'sparse_values': {'indices': [], 'values': []},
+              'values': []},
+             {'id': '1300',
+              'metadata': {'text': "what happened in the 90's"},
+              'score': 0.41562626,
+              'sparse_values': {'indices': [], 'values': []},
+              'values': []}],
+ 'namespace': ''}
+
+A clearer answer:
+
+>>> for r in answer_vector ['matches']:
+...     print(f"{round(r['score'],2)}: {r['metadata']['text']}")
+...
+0.62: what happened in 1907
+0.44: what are the reasons for historical change
+0.44: what time was the modern age from\
