@@ -1,0 +1,8 @@
+"Oracle is a large corporation"
+"Larry Ellison was one of the founders of Oracle"
+"Larry seldom wears a suit"
+"ORCL is the stock symbol of Oracle"
+"ORCL is a pioneer in AI infrastructure"
+"Oracle and OpenAI are close partners in AI space"
+"Sam Altman is the CEO of OpenAI"
+"OpenIA is a leader in AI software"
